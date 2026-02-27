@@ -47,6 +47,8 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { supabase } from "@/lib/supabase"
 import { InvoiceManager } from "@/components/invoice-manager"
+import { useBadgeSync } from "@/hooks/use-badge-sync"
+import { NotificationsPanel } from "@/components/notifications-panel"
 
 type Brand = "Wami Live" | "Luck On Fourth" | "The Hideout" | "What's Good Chicago"
 type ProjectType = "Flyer" | "Promo Video"
@@ -319,7 +321,7 @@ export default function ProjectManagementDashboard() {
   const [userRole, setUserRole] = useState<"client" | "admin">("client")
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [activeTab, setActiveTab] = useState<"projects" | "invoices" | "drive">("projects")
+  const [activeTab, setActiveTab] = useState<"projects" | "invoices" | "drive" | "notifications">("projects")
   const [invoiceProjects, setInvoiceProjects] = useState<{ [brand: string]: InvoiceProject[] }>({
     "Wami Live": [],
     "Luck On Fourth": [],
@@ -348,6 +350,9 @@ export default function ProjectManagementDashboard() {
     priority: 1 as Priority, // This will be updated after projects load
     files: [] as ProjectFile[],
   })
+
+  // Badge sync + Realtime
+  useBadgeSync()
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -614,6 +619,17 @@ export default function ProjectManagementDashboard() {
         }
 
         toast.success("Project created successfully!")
+
+        // Fire push notification to all subscribers (non-blocking)
+        fetch("/api/pmp/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: "New project queued",
+            message: projectData.title,
+            url: "/",
+          }),
+        }).catch(() => {})
       }
 
       // Reset form and pending files
@@ -1029,6 +1045,19 @@ export default function ProjectManagementDashboard() {
                 </button>
               )}
 
+              {userRole === "admin" && (
+                <button
+                  onClick={() => setActiveTab("notifications")}
+                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
+                    activeTab === "notifications"
+                      ? "bg-blue-600 text-white shadow-lg transform scale-105"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105"
+                  }`}
+                >
+                  Notifications
+                </button>
+              )}
+
               {/* Admin Toggle Button - At the end */}
               <Button
                 variant={userRole === "admin" ? "default" : "outline"}
@@ -1158,6 +1187,12 @@ export default function ProjectManagementDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </div>
+      ) : activeTab === "notifications" && userRole === "admin" ? (
+        <div className="container mx-auto px-4 py-4 sm:py-6 md:py-8">
+          <div className="max-w-2xl mx-auto">
+            <NotificationsPanel />
           </div>
         </div>
       ) : activeTab === "invoices" && userRole === "admin" ? (
