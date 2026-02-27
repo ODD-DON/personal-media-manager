@@ -8,7 +8,6 @@ async function fetchPendingCount(): Promise<number> {
     .from("pmp_projects")
     .select("id", { count: "exact", head: true })
     .eq("status", "Pending")
-
   if (error) return 0
   return count ?? 0
 }
@@ -24,6 +23,22 @@ function applyBadge(count: number) {
   }
 }
 
+function fireNotification(title: string, body: string) {
+  if (typeof window === "undefined") return
+  if (!("Notification" in window)) return
+  if (Notification.permission !== "granted") return
+  // Don't notify the tab that triggered the insert — only background tabs
+  if (document.visibilityState === "visible") return
+  try {
+    new Notification(title, {
+      body,
+      icon: "/icon-192.png",
+    })
+  } catch {
+    // Notifications blocked or unsupported — silently ignore
+  }
+}
+
 export function useBadgeSync() {
   const syncBadge = useCallback(async () => {
     const count = await fetchPendingCount()
@@ -31,21 +46,24 @@ export function useBadgeSync() {
   }, [])
 
   useEffect(() => {
-    // Sync on mount
     syncBadge()
 
-    // Sync on window focus
     const onFocus = () => syncBadge()
     window.addEventListener("focus", onFocus)
 
-    // Supabase Realtime subscription on pmp_projects changes
     const channel = supabase
       .channel("pmp-badge-sync")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "pmp_projects" },
-        () => {
+        (payload) => {
           syncBadge()
+
+          // Fire a native browser notification for new inserts
+          if (payload.eventType === "INSERT") {
+            const title = (payload.new as any)?.title ?? "New project queued"
+            fireNotification("New project queued", title)
+          }
         }
       )
       .subscribe()
