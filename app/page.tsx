@@ -47,6 +47,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { supabase } from "@/lib/supabase"
 import { InvoiceManager } from "@/components/invoice-manager"
+import { useBadgeSync } from "@/hooks/use-badge-sync"
 
 type Brand = "Wami Live" | "Luck On Fourth" | "The Hideout" | "What's Good Chicago"
 type ProjectType = "Flyer" | "Promo Video"
@@ -349,6 +350,9 @@ export default function ProjectManagementDashboard() {
     files: [] as ProjectFile[],
   })
 
+  // Badge sync + Realtime
+  useBadgeSync()
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -614,6 +618,17 @@ export default function ProjectManagementDashboard() {
         }
 
         toast.success("Project created successfully!")
+
+        // Fire push notification to all subscribers (non-blocking)
+        fetch("/api/pmp/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: "New project queued",
+            message: projectData.title,
+            url: "/",
+          }),
+        }).catch(() => {})
       }
 
       // Reset form and pending files

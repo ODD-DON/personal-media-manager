@@ -13,6 +13,7 @@ import { format } from "date-fns"
 import jsPDF from "jspdf"
 import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase"
+import { NotificationsPanel } from "@/components/notifications-panel"
 
 interface InvoiceProject {
   id: string
@@ -562,6 +563,9 @@ export function InvoiceManager({
 
   return (
     <div className="space-y-6">
+      {/* Notifications panel — always at the top of Invoices */}
+      <NotificationsPanel />
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Invoice Manager</h2>
