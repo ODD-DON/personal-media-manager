@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Bell, BellOff, Send, Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react"
@@ -28,10 +27,8 @@ export function NotificationsPanel() {
   const [isSubscribed, setIsSubscribed] = useState<boolean | null>(null)
   const [isEnabling, setIsEnabling] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
-  const [swReady, setSwReady] = useState(false)
   const [vapidMissing, setVapidMissing] = useState(false)
 
-  // Check current state on mount
   useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -46,15 +43,10 @@ export function NotificationsPanel() {
       setVapidMissing(true)
     }
 
-    // Check if SW is registered and if we have an active push subscription
-    navigator.serviceWorker.ready.then((registration) => {
-      setSwReady(true)
-      return registration.pushManager.getSubscription()
-    }).then((sub) => {
-      setIsSubscribed(!!sub)
-    }).catch(() => {
-      setIsSubscribed(false)
-    })
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setIsSubscribed(!!sub))
+      .catch(() => setIsSubscribed(false))
   }, [])
 
   const enablePush = useCallback(async () => {
@@ -70,7 +62,6 @@ export function NotificationsPanel() {
 
     setIsEnabling(true)
     try {
-      // 1. Request permission (must be user gesture)
       const result = await Notification.requestPermission()
       setPermission(result as PermissionState)
 
@@ -79,25 +70,20 @@ export function NotificationsPanel() {
         return
       }
 
-      // 2. Register service worker if not already
       let registration = await navigator.serviceWorker.getRegistration("/sw.js")
       if (!registration) {
         registration = await navigator.serviceWorker.register("/sw.js")
         await navigator.serviceWorker.ready
       }
 
-      // 3. Subscribe to push
       const existingSub = await registration.pushManager.getSubscription()
-      if (existingSub) {
-        await existingSub.unsubscribe()
-      }
+      if (existingSub) await existingSub.unsubscribe()
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       })
 
-      // 4. Save subscription to Supabase
       const { error } = await supabase.from("pmp_push_subscriptions").insert([
         {
           subscription_json: subscription.toJSON(),
@@ -106,15 +92,13 @@ export function NotificationsPanel() {
       ])
 
       if (error) {
-        console.error("Failed to save push subscription:", error)
         toast.error("Failed to save subscription to database")
         return
       }
 
       setIsSubscribed(true)
-      toast.success("Push notifications enabled! You will receive notifications when new projects are queued.")
+      toast.success("Push notifications enabled successfully.")
     } catch (err: any) {
-      console.error("Error enabling push:", err)
       toast.error(`Failed to enable notifications: ${err.message}`)
     } finally {
       setIsEnabling(false)
@@ -149,131 +133,110 @@ export function NotificationsPanel() {
     }
   }, [])
 
-  const getPermissionBadge = () => {
+  const permissionBadge = () => {
     switch (permission) {
       case "granted":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
-            <CheckCircle className="h-3 w-3" />
-            Granted
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1">
+            <CheckCircle className="h-3 w-3" /> Granted
           </Badge>
         )
       case "denied":
         return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 flex items-center gap-1">
-            <XCircle className="h-3 w-3" />
-            Denied
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1">
+            <XCircle className="h-3 w-3" /> Denied
           </Badge>
         )
       case "unsupported":
         return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Not Supported
+          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 gap-1">
+            <AlertCircle className="h-3 w-3" /> Not Supported
           </Badge>
         )
       default:
         return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Not Asked
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 gap-1">
+            <AlertCircle className="h-3 w-3" /> Not Asked
           </Badge>
         )
     }
   }
 
   return (
-    <Card className="border-blue-200 bg-blue-50/30">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-blue-600" />
-          <CardTitle className="text-base">Push Notifications</CardTitle>
-        </div>
-        <CardDescription className="text-sm">
-          Receive push notifications when new projects are added.
-          {" "}
-          <span className="text-blue-700 font-medium">
-            For iPhone: install to Home Screen first, then enable notifications from this page.
-          </span>
-        </CardDescription>
-      </CardHeader>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold mb-1">Push Notifications</h2>
+        <p className="text-gray-600">
+          Receive push notifications when new projects are queued. On iPhone, install to Home Screen first, then enable from here.
+        </p>
+      </div>
 
-      <CardContent className="space-y-4">
-        {/* Status row */}
-        <div className="flex flex-wrap gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-600">Permission:</span>
-            {getPermissionBadge()}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-600">Subscribed:</span>
-            {isSubscribed === null ? (
-              <Badge variant="outline" className="text-gray-500">Checking...</Badge>
-            ) : isSubscribed ? (
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Yes
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 flex items-center gap-1">
-                <XCircle className="h-3 w-3" />
-                No
-              </Badge>
-            )}
-          </div>
-          {vapidMissing && (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                VAPID keys missing — add to Vars panel
-              </Badge>
-            </div>
+      {/* Status */}
+      <div className="flex flex-wrap gap-4 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">Permission:</span>
+          {permissionBadge()}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">Subscribed:</span>
+          {isSubscribed === null ? (
+            <Badge variant="outline" className="text-gray-500">Checking...</Badge>
+          ) : isSubscribed ? (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1">
+              <CheckCircle className="h-3 w-3" /> Yes
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 gap-1">
+              <XCircle className="h-3 w-3" /> No
+            </Badge>
           )}
         </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant={permission === "granted" && isSubscribed ? "outline" : "default"}
-            onClick={enablePush}
-            disabled={isEnabling || permission === "denied" || permission === "unsupported"}
-            className={permission === "denied" || permission === "unsupported" ? "opacity-50" : ""}
-          >
-            {isEnabling ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : permission === "granted" && isSubscribed ? (
-              <BellOff className="h-4 w-4 mr-2" />
-            ) : (
-              <Bell className="h-4 w-4 mr-2" />
-            )}
-            {permission === "granted" && isSubscribed
-              ? "Re-subscribe"
-              : "Enable Push Notifications"}
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={sendTestNotification}
-            disabled={isTesting || !isSubscribed}
-            title={!isSubscribed ? "Enable notifications first" : ""}
-          >
-            {isTesting ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4 mr-2" />
-            )}
-            Send Test Notification
-          </Button>
-        </div>
-
-        {permission === "denied" && (
-          <p className="text-xs text-red-600">
-            Notifications are blocked. To re-enable, open your browser/iOS settings and allow notifications for this site, then reload the page.
-          </p>
+        {vapidMissing && (
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 gap-1">
+            <AlertCircle className="h-3 w-3" /> VAPID keys missing — add to Vars panel
+          </Badge>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-3">
+        <Button
+          variant={permission === "granted" && isSubscribed ? "outline" : "default"}
+          onClick={enablePush}
+          disabled={isEnabling || permission === "denied" || permission === "unsupported"}
+        >
+          {isEnabling ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : permission === "granted" && isSubscribed ? (
+            <BellOff className="h-4 w-4 mr-2" />
+          ) : (
+            <Bell className="h-4 w-4 mr-2" />
+          )}
+          {permission === "granted" && isSubscribed ? "Re-subscribe" : "Enable Push Notifications"}
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={sendTestNotification}
+          disabled={isTesting || !isSubscribed}
+        >
+          {isTesting ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4 mr-2" />
+          )}
+          Send Test Notification
+        </Button>
+      </div>
+
+      {permission === "denied" && (
+        <p className="text-sm text-red-600">
+          Notifications are blocked. Open your browser or iOS settings, allow notifications for this site, then reload.
+        </p>
+      )}
+    </div>
   )
 }
