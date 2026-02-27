@@ -36,6 +36,13 @@ export async function POST(req: NextRequest) {
     )
 
     const supabase = getSupabaseAdmin()
+
+    // Fetch current pending count to include in payload for badge update
+    const { count: pendingCount } = await supabase
+      .from("pmp_projects")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "Pending")
+
     const { data: subscriptions, error } = await supabase
       .from("pmp_push_subscriptions")
       .select("subscription_json, id")
@@ -48,7 +55,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ sent: 0, message: "No subscriptions found" })
     }
 
-    const payload = JSON.stringify({ title, body: message, url })
+    const payload = JSON.stringify({ title, body: message, url, pendingCount: pendingCount ?? 0 })
     const staleIds: string[] = []
     let sent = 0
 

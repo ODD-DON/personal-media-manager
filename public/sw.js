@@ -1,7 +1,7 @@
 // PMP Service Worker
 const CACHE_NAME = "pmp-v1";
 
-self.addEventListener("install", (event) => {
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
@@ -9,12 +9,12 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(clients.claim());
 });
 
-// Handle push events (web push notifications)
+// Handle push events — fires even when the app is closed
 self.addEventListener("push", (event) => {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
-  } catch (e) {
+  } catch {
     data = { title: "New Notification", body: event.data ? event.data.text() : "" };
   }
 
@@ -25,9 +25,19 @@ self.addEventListener("push", (event) => {
     badge: "/icon-192.png",
     data: { url: data.url || "/" },
     requireInteraction: false,
+    // vibrate pattern: buzz-pause-buzz
+    vibrate: [200, 100, 200],
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      // Update the home screen badge count from the push payload
+      typeof navigator !== "undefined" && "setAppBadge" in navigator && data.pendingCount != null
+        ? navigator.setAppBadge(data.pendingCount)
+        : Promise.resolve(),
+    ])
+  );
 });
 
 // On notification click: focus or open the app
@@ -40,7 +50,7 @@ self.addEventListener("notificationclick", (event) => {
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((windowClients) => {
         for (const client of windowClients) {
-          if (client.url === targetUrl && "focus" in client) {
+          if (client.url.includes(targetUrl) && "focus" in client) {
             return client.focus();
           }
         }
