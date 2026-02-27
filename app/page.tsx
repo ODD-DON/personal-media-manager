@@ -1260,7 +1260,7 @@ export default function ProjectManagementDashboard() {
                         "_blank",
                       )
                     }
-                    className="w-full bg-cyan-600 hover:bg-cyan-700"
+                    className="w-full bg-sky-400 hover:bg-sky-500 text-white"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Open Drive Folder
