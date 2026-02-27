@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Loader2,
   User,
+  Bell,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
@@ -48,7 +49,6 @@ import { CSS } from "@dnd-kit/utilities"
 import { supabase } from "@/lib/supabase"
 import { InvoiceManager } from "@/components/invoice-manager"
 import { useBadgeSync } from "@/hooks/use-badge-sync"
-import { NotificationsPanel } from "@/components/notifications-panel"
 
 type Brand = "Wami Live" | "Luck On Fourth" | "The Hideout" | "What's Good Chicago"
 type ProjectType = "Flyer" | "Promo Video"
@@ -321,7 +321,7 @@ export default function ProjectManagementDashboard() {
   const [userRole, setUserRole] = useState<"client" | "admin">("client")
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [activeTab, setActiveTab] = useState<"projects" | "invoices" | "drive" | "notifications">("projects")
+  const [activeTab, setActiveTab] = useState<"projects" | "invoices" | "drive">("projects")
   const [invoiceProjects, setInvoiceProjects] = useState<{ [brand: string]: InvoiceProject[] }>({
     "Wami Live": [],
     "Luck On Fourth": [],
@@ -353,6 +353,13 @@ export default function ProjectManagementDashboard() {
 
   // Badge sync + Realtime
   useBadgeSync()
+
+  const [notifPermission, setNotifPermission] = useState<"default" | "granted" | "denied" | "unsupported">("default")
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!("Notification" in window)) { setNotifPermission("unsupported"); return }
+    setNotifPermission(Notification.permission as "default" | "granted" | "denied" | "unsupported")
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1045,17 +1052,63 @@ export default function ProjectManagementDashboard() {
                 </button>
               )}
 
+              {/* Admin controls */}
               {userRole === "admin" && (
-                <button
-                  onClick={() => setActiveTab("notifications")}
-                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
-                    activeTab === "notifications"
-                      ? "bg-blue-600 text-white shadow-lg transform scale-105"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105"
-                  }`}
-                >
-                  Notifications
-                </button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="h-10 w-10 sm:h-12 sm:w-12 p-0 transition-all duration-200 hover:scale-110 border-2 hover:border-blue-500 hover:text-blue-600 relative"
+                      title="Notifications"
+                    >
+                      <Bell className="h-5 w-5 sm:h-6 sm:w-6" />
+                      {notifPermission === "granted" && (
+                        <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-green-500" />
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 p-4 space-y-3">
+                    <div>
+                      <p className="font-semibold text-sm">Push Notifications</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Get alerted when a new project is queued.
+                      </p>
+                    </div>
+                    {notifPermission === "granted" ? (
+                      <div className="flex items-center gap-2 text-sm text-green-700">
+                        <CheckCircle className="h-4 w-4 shrink-0" />
+                        <span>Enabled — you're all set.</span>
+                      </div>
+                    ) : notifPermission === "denied" ? (
+                      <div className="flex items-center gap-2 text-sm text-red-600">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>Blocked by browser. Allow in site settings then reload.</span>
+                      </div>
+                    ) : notifPermission === "unsupported" ? (
+                      <p className="text-sm text-gray-500">Not supported in this browser.</p>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={async () => {
+                          if (!("Notification" in window)) return
+                          const result = await Notification.requestPermission()
+                          setNotifPermission(result as "default" | "granted" | "denied" | "unsupported")
+                          if (result === "granted") {
+                            new Notification("Notifications active", {
+                              body: "You'll be notified when new projects are queued.",
+                              icon: "/icon-192.png",
+                            })
+                          }
+                        }}
+                      >
+                        <Bell className="h-4 w-4 mr-2" />
+                        Enable Notifications
+                      </Button>
+                    )}
+                  </PopoverContent>
+                </Popover>
               )}
 
               {/* Admin Toggle Button - At the end */}
@@ -1187,12 +1240,6 @@ export default function ProjectManagementDashboard() {
                 </CardContent>
               </Card>
             </div>
-          </div>
-        </div>
-      ) : activeTab === "notifications" && userRole === "admin" ? (
-        <div className="container mx-auto px-4 py-4 sm:py-6 md:py-8">
-          <div className="max-w-2xl mx-auto">
-            <NotificationsPanel />
           </div>
         </div>
       ) : activeTab === "invoices" && userRole === "admin" ? (
