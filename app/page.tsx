@@ -1072,13 +1072,13 @@ export default function ProjectManagementDashboard() {
                     <div>
                       <p className="font-semibold text-sm">Push Notifications</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Get alerted when a new project is queued.
+                        Banner + sound when a new project is queued — even with the app closed.
                       </p>
                     </div>
                     {notifPermission === "granted" ? (
                       <div className="flex items-center gap-2 text-sm text-green-700">
                         <CheckCircle className="h-4 w-4 shrink-0" />
-                        <span>Enabled — you're all set.</span>
+                        <span>Enabled — you'll get banners and sounds.</span>
                       </div>
                     ) : notifPermission === "denied" ? (
                       <div className="flex items-center gap-2 text-sm text-red-600">
@@ -1092,14 +1092,42 @@ export default function ProjectManagementDashboard() {
                         size="sm"
                         className="w-full"
                         onClick={async () => {
-                          if (!("Notification" in window)) return
-                          const result = await Notification.requestPermission()
-                          setNotifPermission(result as "default" | "granted" | "denied" | "unsupported")
-                          if (result === "granted") {
+                          try {
+                            if (!("Notification" in window) || !("serviceWorker" in navigator)) return
+                            const permission = await Notification.requestPermission()
+                            setNotifPermission(permission as "default" | "granted" | "denied" | "unsupported")
+                            if (permission !== "granted") return
+
+                            const vapidKey = process.env.NEXT_PUBLIC_PMP_VAPID_PUBLIC_KEY
+                            if (!vapidKey) {
+                              // Fallback: native notification only (no background push)
+                              new Notification("Notifications active", {
+                                body: "You'll be notified when the app is open.",
+                                icon: "/icon-192.png",
+                              })
+                              return
+                            }
+
+                            const reg = await navigator.serviceWorker.ready
+                            const existing = await reg.pushManager.getSubscription()
+                            const sub = existing ?? await reg.pushManager.subscribe({
+                              userVisibleOnly: true,
+                              applicationServerKey: vapidKey,
+                            })
+
+                            // Save subscription to Supabase
+                            await fetch("/api/pmp/push/subscribe", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ subscription: sub.toJSON() }),
+                            })
+
                             new Notification("Notifications active", {
-                              body: "You'll be notified when new projects are queued.",
+                              body: "You'll get banners and sounds for new projects — even with the app closed.",
                               icon: "/icon-192.png",
                             })
+                          } catch (err) {
+                            console.error("[PMP] Push subscribe error:", err)
                           }
                         }}
                       >
