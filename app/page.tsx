@@ -97,7 +97,7 @@ const brandColors = {
   "Wami Live": "bg-purple-100 text-purple-800 border-purple-200",
   "Luck On Fourth": "bg-green-100 text-green-800 border-green-200",
   "The Hideout": "bg-orange-100 text-orange-800 border-orange-200",
-  "What's Good Chicago": "bg-cyan-100 text-cyan-800 border-cyan-200",
+  "What's Good Chicago": "bg-[#e6f3fb] text-[#0076B6] border-[#0076B6]",
 }
 
 const getPriorityColor = (priority: number) => {
@@ -1260,7 +1260,10 @@ export default function ProjectManagementDashboard() {
                         "_blank",
                       )
                     }
-                    className="w-full bg-sky-400 hover:bg-sky-500 text-white"
+                    className="w-full text-white"
+                    style={{ backgroundColor: "#0076B6" }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#005f91")}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#0076B6")}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Open Drive Folder
